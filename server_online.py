@@ -15,13 +15,13 @@ log_no_hashes = int(log2(number_of_hashes)) + 1
 base = 2 ** ell
 minibin_capacity = int(bin_capacity / alpha)
 logB_ell = int(log2(minibin_capacity) / ell) + 1 # <= 2 ** HE.depth
-
+# 创建一个新的socket对象，指定IPv4地址族（AF_INET）和TCP传输协议（SOCK_STREAM)
 serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-serv.bind(('localhost', 4470))
-serv.listen(1)
+serv.bind(('localhost', 4470)) #绑定socket到特定的地址和端口 
+serv.listen(1)# 开始监听连接请求，参数1表示最大连接数（这里为1，即一次只能处理一个连接）
 
-g = open('server_preprocessed', 'rb')
-poly_coeffs = pickle.load(g)
+with open('server_preprocessed.pkl', 'rb') as g:
+    poly_coeffs = pickle.load(g)
 
 # For the online phase of the server, we need to use the columns of the preprocessed database
 transposed_poly_coeffs = np.transpose(poly_coeffs).tolist()

@@ -6,7 +6,7 @@ from parameters import sigma_max
 
 mask = 2 ** sigma_max - 1
 
-number_of_processes = 4
+number_of_processes = 3
 
 # Curve parameters
 curve_used = P192
@@ -19,6 +19,7 @@ def server_prf_offline(vector_of_items_and_point): #used as a subroutine for ser
 	vector_of_items = vector_of_items_and_point[0]
 	point = vector_of_items_and_point[1]
 	vector_of_multiples = [item * point for item in vector_of_items]
+	# X>>a为右移运算符，即X/(2^a)；& 按位与运算符
 	return [(Q.x >> log_p - sigma_max - 10) & mask for Q in vector_of_multiples]
 
 def server_prf_offline_parallel(vector_of_items, point):
@@ -34,7 +35,9 @@ def server_prf_offline_parallel(vector_of_items, point):
 	inputs_and_point = [(input_vec, point) for input_vec in inputs]
 	outputs = []
 	with Pool(number_of_processes) as p:
+		# map函数是Pool对象的一个方法，它接受两个参数：一个函数和一个可迭代对象。map函数会将inputs_and_point中的每一个元素作为server_prf_offline函数的参数来调用
 		outputs = p.map(server_prf_offline, inputs_and_point)	
+	# 将结果放进一个数组
 	final_output = []
 	for output_vector in outputs:
 		final_output = final_output + output_vector

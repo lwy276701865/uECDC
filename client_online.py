@@ -1,9 +1,9 @@
 import tenseal as ts
 from time import time
 import socket
-import pickle
+import pickle,mmh3
 from math import log2
-from parameters import sigma_max, output_bits, plain_modulus, poly_modulus_degree, number_of_hashes, bin_capacity, alpha, ell, hash_seeds
+from parameters import sigma_max, output_bits, plain_modulus, poly_modulus_degree, number_of_hashes, bin_capacity, alpha, ell, cuckoo_hash_seeds,VBF_hash_seeds
 from cuckoo_hash import reconstruct_item, Cuckoo
 from auxiliary_functions import windowing
 from oprf import order_of_generator, client_prf_online_parallel
@@ -25,8 +25,8 @@ public_context = ts.context_from(private_context.serialize())
 public_context.make_context_public()
 
 # We prepare the partially OPRF processed database to be sent to the server
-pickle_off = open("client_preprocessed", "rb")
-encoded_client_set = pickle.load(pickle_off)
+with open("client_preprocessed.pkl", "rb") as pickle_off:
+    encoded_client_set = pickle.load(pickle_off)
 encoded_client_set_serialized = pickle.dumps(encoded_client_set, protocol=None)
 
 L = len(encoded_client_set_serialized)
@@ -52,10 +52,16 @@ server_to_client_communication_oprf = len(PRFed_encoded_client_set_serialized)
 key_inverse = pow(oprf_client_key, -1, order_of_generator)
 PRFed_client_set = client_prf_online_parallel(key_inverse, PRFed_encoded_client_set)
 print(' * OPRF protocol done!')
-
-# Each PRFed item from the client set is mapped to a Cuckoo hash table
-CH = Cuckoo(hash_seeds)
+#VBF编码
+VBF_PRF_link={} #将数据与VBF编码建立关系，方便定位数据
+VBF_PRFed_client_set=set()
 for item in PRFed_client_set:
+    VBF_PRF_link[item]=[mmh3.hash(str(item), VBF_hash_seeds[i], signed=False) for i in range(2)]
+    for i in range(2):
+        VBF_PRFed_client_set.add(mmh3.hash(str(item), VBF_hash_seeds[i], signed=False))
+# Each PRFed item from the client set is mapped to a Cuckoo hash table
+CH = Cuckoo(cuckoo_hash_seeds)
+for item in VBF_PRFed_client_set:
     CH.insert(item)
 
 # We padd the Cuckoo vector with dummy messages
@@ -123,10 +129,10 @@ for matrix in windowed_items:
 
 count = [0] * alpha
 
-g = open('client_set', 'r')
-client_set_entries = g.readlines()
-g.close()
+with open('client_set.csv', 'r') as g:
+    client_set_entries = g.readlines()
 client_intersection = []
+VBF_PRFed_common_element_set=set()
 for j in range(alpha):
     for i in range(poly_modulus_degree):
         if decryptions[j][i] == 0:
@@ -134,15 +140,23 @@ for j in range(alpha):
 
             # The index i is the location of the element in the intersection
             # Here we recover this element from the Cuckoo hash structure
-            PRFed_common_element = reconstruct_item(recover_CH_structure[i], i, hash_seeds[recover_CH_structure[i] % (2 ** log_no_hashes)])
-            index = PRFed_client_set.index(PRFed_common_element)
-            client_intersection.append(int(client_set_entries[index][:-1]))
-
-h = open('intersection', 'r')
-real_intersection = [int(line[:-1]) for line in h]
-h.close()
+            VBF_PRFed_common_element = reconstruct_item(recover_CH_structure[i], i, cuckoo_hash_seeds[recover_CH_structure[i] % (2 ** log_no_hashes)])
+            VBF_PRFed_common_element_set.add(VBF_PRFed_common_element)
+for key,value in VBF_PRF_link.items():
+    if all(num in VBF_PRFed_common_element_set for num in value):  
+        # 如果value中的两个整数都在VBF_PRFed_common_element_set中，则将key添加到结果列表中  
+        index = PRFed_client_set.index(key)
+        client_intersection.append(client_set_entries[int(index/32)]) 
+client_intersection = set(client_intersection)
+# h = open('intersection', 'r')
+# real_intersection = [int(line[:-1]) for line in h]
+# h.close()
 t3 = time()
-print('\n Intersection recovered correctly: {}'.format(set(client_intersection) == set(real_intersection)))
+# print('\n Intersection recovered correctly: {}'.format(set(client_intersection) == set(real_intersection)))
+with open("intersection.csv", "w") as intersection_file:
+    for item in client_intersection:
+        intersection_file.write(item)
+print('Wrote receiver\'s set')
 print("Disconnecting...\n")
 print('  Client ONLINE computation time {:.2f}s'.format(t1 - t0 + t3 - t2))
 print('  Communication size:')

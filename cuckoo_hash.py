@@ -61,7 +61,7 @@ def rand_point(bound, i):
 
 class Cuckoo():
 
-	def __init__(self, hash_seed):
+	def __init__(self, cuckoo_hash_seed):
 		self.number_of_bins = 2 ** output_bits
 		self.recursion_depth = int(8 * math.log(self.number_of_bins) / math.log(2))
 		self.data_structure = [None for j in range(self.number_of_bins)]
@@ -69,10 +69,10 @@ class Cuckoo():
 		self.depth = 0
 		self.FAIL = 0
 
-		self.hash_seed = hash_seed	
+		self.cuckoo_hash_seed = cuckoo_hash_seed	
 
 	def insert(self, item): #item is an integer
-		current_location = location( self.hash_seed[self.insert_index], item)
+		current_location = location( self.cuckoo_hash_seed[self.insert_index], item)
 		current_item = self.data_structure[ current_location]
 		self.data_structure[ current_location ] = left_and_index(item, self.insert_index)
 
@@ -84,7 +84,7 @@ class Cuckoo():
 			self.insert_index = rand_point(number_of_hashes, unwanted_index)	
 			if (self.depth < self.recursion_depth):
 				self.depth +=1
-				jumping_item = reconstruct_item(current_item, current_location, self.hash_seed[unwanted_index])
+				jumping_item = reconstruct_item(current_item, current_location, self.cuckoo_hash_seed[unwanted_index])
 				self.insert(jumping_item)		
 			else:
 				self.FAIL = 1	

@@ -10,17 +10,23 @@ t0 = time()
 client_point_precomputed = (oprf_client_key % order_of_generator) * G
 
 client_set = []
-f = open('client_set', 'r')
-lines = f.readlines()
-for item in lines:
-	client_set.append(int(item[:-1]))
-f.close()
-
+with open('client_set.csv', 'r') as f:
+    lines = f.readlines()
+    for line in lines:
+        item,label=line[:-1].split(",")
+        binary_item = bin(int(item))[2:]
+        binary_label = bin(int(label))[2:]
+        for i in range(len(binary_label)):
+            # 拼接binary_item的二进制字符串和binary_label的当前位  
+            concat_binary_item = binary_item + str(int(binary_label[:i+1])^1)  
+            # 将拼接后的二进制字符串转换回十进制  
+            decimal_value = int(concat_binary_item, 2)  
+            # 将十进制值添加到结果数组中  
+            client_set.append(decimal_value) 
 # OPRF layer: encode the client's set as elliptic curve points.
 encoded_client_set = [client_prf_offline(item, client_point_precomputed) for item in client_set]
 
-g = open('client_preprocessed', 'wb')
-pickle.dump(encoded_client_set, g)	 
-g.close()   
+with open('client_preprocessed.pkl', 'wb') as g:
+    pickle.dump(encoded_client_set, g)	 
 t1 = time()
 print('Client OFFLINE time: {:.2f}s'.format(t1-t0))
