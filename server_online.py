@@ -1,6 +1,6 @@
 import socket
 import tenseal as ts
-import pickle
+import pickle,zlib
 import numpy as np
 from math import log2
 
@@ -21,14 +21,14 @@ serv.bind(('localhost', 4470)) #绑定socket到特定的地址和端口
 serv.listen(1)# 开始监听连接请求，参数1表示最大连接数（这里为1，即一次只能处理一个连接）
 
 with open('server_preprocessed.pkl', 'rb') as g:
-    poly_coeffs = pickle.load(g)
+    (poly_coeffs,link_slice_matrix) = pickle.load(g)
 
 # For the online phase of the server, we need to use the columns of the preprocessed database
-transposed_poly_coeffs = np.transpose(poly_coeffs).tolist()
+transposed_poly_coeffs = np.transpose(poly_coeffs).tolist() #数组转置
 
 for i in range(1):
-    conn, addr = serv.accept()
-    L = conn.recv(10).decode().strip()
+    conn, addr = serv.accept()#接受客户端的连接请求，并返回一个新的套接字对象 conn 和客户端地址 addr。
+    L = conn.recv(10).decode().strip()#从连接 conn 接收10 字节的数据,进而获取到接下来发送的数据流的长度。
     L = int(L, 10)
     # OPRF layer: the server receives the encoded set elements as curve points
     encoded_client_set_serialized = b""
@@ -45,7 +45,7 @@ for i in range(1):
     sL = str(L) + ' ' * (10 - len(str(L))) #pad len to 10 bytes
 
     conn.sendall((sL).encode())
-    conn.sendall(PRFed_encoded_client_set_serialized)    
+    conn.sendall(PRFed_encoded_client_set_serialized)
     print(' * OPRF layer done!')
     t1 = time()
     L = conn.recv(10).decode().strip()
@@ -61,8 +61,8 @@ for i in range(1):
     t2 = time()    
     # Here we recover the context and ciphertext received from the received bytes
     received_data = pickle.loads(final_data)
-    srv_context = ts.context_from(received_data[0])
-    received_enc_query_serialized = received_data[1]
+    srv_context = ts.context_from(received_data[0])#只能加密的public_context
+    received_enc_query_serialized = received_data[1]#client发送的y的密文
     received_enc_query = [[None for j in range(logB_ell)] for i in range(base - 1)]
     for i in range(base - 1):
         for j in range(logB_ell):
@@ -80,20 +80,21 @@ for i in range(1):
     for k in range(minibin_capacity):
         if all_powers[k] == None:
             all_powers[k] = power_reconstruct(received_enc_query, k + 1)
-    all_powers = all_powers[::-1]
+    all_powers = all_powers[::-1]#翻转数组，y^b,...,y^2,y
 
     # Server sends alpha ciphertexts, obtained from performing dot_product between the polynomial coefficients from the preprocessed server database and all the powers Enc(y), ..., Enc(y^{minibin_capacity})
     srv_answer = []
     for i in range(alpha):
         # the rows with index multiple of (B/alpha+1) have only 1's
         dot_product = all_powers[0]
-        for j in range(1, minibin_capacity):
+        for j in range(1,minibin_capacity):
             dot_product = dot_product + transposed_poly_coeffs[(minibin_capacity + 1) * i + j] * all_powers[j]
         dot_product = dot_product + transposed_poly_coeffs[(minibin_capacity + 1) * i + minibin_capacity]
         srv_answer.append(dot_product.serialize())
-
+    link_slice_matrix_compress=zlib.compress(pickle.dumps(link_slice_matrix, protocol=pickle.HIGHEST_PROTOCOL))
     # The answer to be sent to the client is prepared
-    response_to_be_sent = pickle.dumps(srv_answer, protocol=None)
+    data_to_client=(srv_answer,link_slice_matrix_compress)
+    response_to_be_sent = pickle.dumps(data_to_client, protocol=None)
     t3 = time()
     L = len(response_to_be_sent)
     sL = str(L) + ' ' * (10 - len(str(L))) #pad len to 10 bytes

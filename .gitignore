@@ -2,11 +2,7 @@
 
 #### uPSI Specific ####
 parameters/
-build/
-*_generated.h
-**/config.h
-**/*.swp
-**/*.old
+**/*.pkl
 **/*.csv
 
 #### Archives ####

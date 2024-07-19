@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(cmakeTest)
+find_package(pybind11 REQUIRED)
+find_package(libOTe REQUIRED)
+pybind11_add_module(rrokvs rrokvs.cpp SimpleIndex.cpp)
+set(CMAKE_BUILD_TYPE Release)
+target_compile_options(rrokvs PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-std=c++20> -lpthread)
+target_link_libraries(rrokvs PRIVATE oc::libOTe)

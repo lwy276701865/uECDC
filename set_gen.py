@@ -7,7 +7,7 @@ while len(server_list) < server_size:
     item_string = '1'+''.join(choices(['0', '1'], k=63))  
     # 将二进制字符串转换为十进制整数  
     item = int(item_string, 2)
-    label_string = '1'+''.join(choices(['0', '1'], k=31))   
+    label_string = '1'+''.join(choices(['0', '1'], k=5))   
     label = int(label_string, 2)    
     # item = randint(0, 2 ** 63 - 1)
     # label = randint(0, 2 ** 32 - 1)
@@ -20,10 +20,15 @@ while len(client_set) < min(intersection_size, client_size):
     label=item[1]^2 #将标签数据倒数第二位翻转，即错误分类标签
     client_set.add((item[0], label))
 
+h = open('intersection.csv', 'w')
+for item in client_set:
+	h.write(str(item[0])+','+str(item[1]) + '\n')
+h.close()
+
 while len(client_set) < client_size:
     item_string = '1'+''.join(choices(['0', '1'], k=63)) 
     item = int(item_string, 2)
-    label_string = '1'+''.join(choices(['0', '1'], k=31))   
+    label_string = '1'+''.join(choices(['0', '1'], k=5))   
     label = int(label_string, 2)
     client_set.add((item, label))
 print('Done creating client\'s set')
@@ -35,14 +40,10 @@ print('Done creating client\'s set')
 	
 with open("server_set.csv", "w") as server_file:
     for index,(item, label) in enumerate(server_list):
-        server_file.write(str(item) + "," + str(label))
-        if index < len(server_list) - 1:  
-            server_file.write('\n')
+        server_file.write(str(item) + "," + str(label)+ '\n')
 print('Wrote server\'s set')
 
 with open("client_set.csv", "w") as client_file:
     for index,(item, label) in enumerate(client_set):
-        client_file.write(str(item) + "," + str(label))
-        if index < len(client_set) - 1:  
-            client_file.write('\n')
+        client_file.write(str(item) + "," + str(label)+ '\n')
 print('Wrote receiver\'s set')

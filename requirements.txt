@@ -1,5 +1,4 @@
 fastecdsa
-mmh3
 numpy
 tenseal
-gmpy2
+mmh3
