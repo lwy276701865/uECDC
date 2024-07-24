@@ -87,4 +87,5 @@ class Cuckoo():
 				jumping_item = reconstruct_item(current_item, current_location, self.cuckoo_hash_seed[unwanted_index])
 				self.insert(jumping_item)		
 			else:
-				self.FAIL = 1	
+				self.FAIL = 1
+				print('Cuckoo hashing aborted')	

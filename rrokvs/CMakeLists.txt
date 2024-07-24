@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(cmakeTest)
+project(OKVS)
 find_package(pybind11 REQUIRED)
 find_package(libOTe REQUIRED)
 pybind11_add_module(rrokvs rrokvs.cpp SimpleIndex.cpp)

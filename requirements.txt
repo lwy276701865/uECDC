@@ -2,3 +2,5 @@ fastecdsa
 numpy
 tenseal
 mmh3
+pybind11
+scipy

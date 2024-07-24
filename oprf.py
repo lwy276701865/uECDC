@@ -6,7 +6,7 @@ from parameters import sigma_max
 
 mask = 2 ** sigma_max - 1
 
-number_of_processes = 3
+number_of_processes = 6
 
 # Curve parameters
 curve_used = P192

@@ -2,43 +2,45 @@ from math import log2
 
 # sizes of databases of server and client
 # size of intersection should be less than size of client's database
-server_size = 2 ** 14
-client_size = 1000
-intersection_size = 700
+server_size = 2**14
+client_size = 512
+intersection_size = 500
 
 # seeds used by both the Server and the Client for the Murmur hash functions
 VBF_hash_seeds = [1111111111,2222222222]
 cuckoo_hash_seeds = [123456789, 10111213141516, 17181920212223]
 split_hash_seeds = [11111,22222,33333,44444]
-# output_bits = number of bits of output of the hash functions
+# output_bits = number of bits of output of the hash
 # number of bins for simple/Cuckoo Hashing = 2 ** output_bits
-output_bits = 14
+# 14 when client_size=1024;13 when client_size=512
+output_bits = 13
 
 # encryption parameters of the BFV scheme: the plain modulus and the polynomial modulus degree
-plain_modulus = 536903681
-poly_modulus_degree = 2 ** 14
+plain_modulus = 65537#65537
+poly_modulus_degree = 2 ** 13
 
 # the number of hashes we use for simple/Cuckoo hashing
 number_of_hashes = 3
-
 # length of the database items
-sigma_max = int(log2(plain_modulus)) + output_bits - (int(log2(number_of_hashes)) + 1) 
+sigma_max = int(log2(plain_modulus)) + output_bits - (int(log2(number_of_hashes)) + 1)
+# client_size=512
+# B = [100, 310, 1100] for log(server_size) = [14,16, 18] when label size=5
+# B = [80, 250, 900] for log(server_size) = [14,16, 18] when label size=4
+# B = [65, 190, 700] for log(server_size) = [14,16, 18] when label size=3
 
-# B = [68, 176, 536, 1832, 6727] for log(server_size) = [16, 18, 20, 22, 24]
-bin_capacity = 536
-
+# client_size=1024
+# B = [60, 240, 650] for log(server_size) = [14,16, 18] when label size=5
+# B = [50, 150, 600] for log(server_size) = [14,16, 18] when label size=4
+# B = [40, 120 400] for log(server_size) = [14,16, 18] when label size=3
+bin_capacity = 65
 # partitioning parameter
 alpha = 16
-
 # windowing parameter
 ell = 2
-
-#分片数slice number
+#slice number
 slice_number=4
-
 dummy_msg_server = 2 ** 512
 dummy_msg_client = 2 ** 513-1
-#RB-OKVS相关参数
-epsilon=0.1 #错误率
-omega=24#随机带状矩阵中01字符串的长度，论文中指出最佳曲线满足lambda=0.2691*omega-15.21。此时lambda=40,omega=205
-construct_matrix_hashseeds=[705743854180,630853469229]
+
+item_size=32
+label_size=3

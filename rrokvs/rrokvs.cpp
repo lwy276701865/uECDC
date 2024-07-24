@@ -34,28 +34,12 @@ std::vector<uint32_t> encode(const std::vector<uint32_t>& py_key,const std::vect
         val.push_back(block(num));
     }
 	paxos.solve<block>(key, val, pax, nullptr, nt);
-	// paxos.decode<block>(key, val2, pax, nt);
-	// for (block num : pax) {  
-    //     std::cout<<"paxdezhiwei:"<<num<<" ";
-    // }
 	std::vector<uint32_t>py_pax;
 	for(block num:pax)
 	{
 		py_pax.push_back(num.get<u64>(0));
 	}
 	return py_pax;
-	// std::cout<<"val="<<val2
-	// if(val==val2)
-	// {
-	// 	std::cout<<"right"<<std::endl;
-	// 	return pax;
-	// }
-	// else
-	// {
-	// 	std::cout<<"wrong"<<std::endl;
-	// 	throw std::runtime_error("wrong");
-
-	// }
 }
 std::vector<uint32_t> decode(const std::vector<uint32_t>& py_key,const std::vector<uint32_t>& py_pax,int n)
 {
@@ -85,22 +69,6 @@ std::vector<uint32_t> decode(const std::vector<uint32_t>& py_key,const std::vect
 	return py_val;
 }
 PYBIND11_MODULE(rrokvs, m) {
-	// py::class_<block>(m, "block")
-    //     .def(py::init<uint64_t, uint64_t>())
-    //     .def_readonly("data", &block::mData);
     m.def("encode", &encode, "Call encode from static library");
     m.def("decode", &decode, "Call decode from static library");
 }
-// int main(int argc, char** argv){
-// 	int num1 = std::atoi(argv[1]);
-//     int num2 = std::atoi(argv[2]);
-//     int num3 = std::atoi(argv[2]);
-//     int num4 = std::atoi(argv[2]);
-//     int num5 = std::atoi(argv[2]);
-//     int sum = perfBaxos(num1,num2);
-//     std::cout << "Sum of " << num1 << " and " << num2 << " is: " << sum << "\n";
-// 	perfBaxos1(num1,num2,num3,num4,num5);
-// 	//testGen(cmd);
-// 	// testAdd(cmd);
-//     return 0;
-// }
