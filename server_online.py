@@ -1,10 +1,10 @@
 import socket
 import tenseal as ts
-import pickle,zlib
+import pickle,zlib,rrokvs
 import numpy as np
 from math import log2
 
-from parameters import bin_capacity, alpha, ell
+from parameters import bin_capacity, alpha, ell,output_bits
 from auxiliary_functions import power_reconstruct
 from oprf import server_prf_online_parallel
 
@@ -12,6 +12,7 @@ oprf_server_key = 1234567891011121314151617181920
 from time import time
 
 base = 2 ** ell
+table_size=2**output_bits
 minibin_capacity = int(bin_capacity / alpha)
 logB_ell = int(log2(minibin_capacity) / ell) + 1 # <= 2 ** HE.depth
 # 创建一个新的socket对象，指定IPv4地址族（AF_INET）和TCP传输协议（SOCK_STREAM)
@@ -60,9 +61,9 @@ for i in range(1):
     t2 = time()  
     print('*Received encrypted ciphertext for the first slice from the client,time:{:.2f}s'.format(t2 - t1))  
     # Here we recover the context and ciphertext received from the received bytes
-    received_data = pickle.loads(zlib.decompress(final_data))
-    srv_context = ts.context_from(received_data[0])#只能加密的public_context
-    received_enc_query_serialized = received_data[1]#client发送的y的密文
+    (enc_message_to_be_sent,first_slice) = pickle.loads(zlib.decompress(final_data))
+    srv_context = ts.context_from(enc_message_to_be_sent[0])#只能加密的public_context
+    received_enc_query_serialized = enc_message_to_be_sent[1]#client发送的y的密文
     received_enc_query = [[None for j in range(logB_ell)] for i in range(base - 1)]
     for i in range(base - 1):
         for j in range(logB_ell):
@@ -92,7 +93,18 @@ for i in range(1):
         dot_product = dot_product + transposed_poly_coeffs[(minibin_capacity + 1) * i + minibin_capacity]
         srv_answer.append(dot_product.serialize())
     # The answer to be sent to the client is prepared
-    data_to_client=(srv_answer,link_slice_matrix)
+    # data_to_client=(srv_answer,link_slice_matrix)
+    link_slice_matrix_array=link_slice_matrix.toarray()
+    reconstruct_slices=[[None for _ in range(alpha)] for _ in range(table_size)]
+    for j in range(alpha):
+        for i in range(table_size):
+            link_slice_matrix_ij=link_slice_matrix_array[3*(alpha*i+j):3*(alpha*i+j+1)].tolist()
+            reconstruct_slice=[]
+            for link_vec in link_slice_matrix_ij:
+                reconstruct_slice.append(rrokvs.decode([first_slice[i]],link_vec,minibin_capacity)[0])
+            reconstruct_slices[i][j]=reconstruct_slice
+           
+    data_to_client=(srv_answer,reconstruct_slices)
     response_to_be_sent = zlib.compress(pickle.dumps(data_to_client, protocol=pickle.HIGHEST_PROTOCOL))
     t3 = time()
     print('*Calculate all homomorphic operations,time{:.2f}s'.format(t3 - t2))  
@@ -102,7 +114,7 @@ for i in range(1):
     conn.sendall((sL).encode())
     conn.sendall(response_to_be_sent)
     t4 = time()
-    print('*sending the ciphertext polynomial and okvs structure,time{:.2f}s'.format(t4 - t3))  
+    print('*sending the ciphertext polynomial,time{:.2f}s'.format(t4 - t3))  
     # Close the connection
     print("Client disconnected \n")
     print('Server ONLINE computation time {:.2f}s'.format(t1 - t0 + t3 - t2))

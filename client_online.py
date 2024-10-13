@@ -85,9 +85,11 @@ print('*Cuckoo hashing time:{:.2f}s'.format(t3 - t2))
 # We apply the windowing procedure for each item from the Cuckoo structure
 windowed_items = []
 dict_index_itemslice={}
+first_slice=[]
 item_slice_list=split_integers_unique_first_block(CH.data_structure,slice_number)#数据切片
 for index,item in enumerate(CH.data_structure):
     dict_index_itemslice[index]=item_slice_list[index]
+    first_slice.append(item_slice_list[index][0])
     windowed_items.append(windowing(item_slice_list[index][0], minibin_capacity, plain_modulus))#后续处理第一分片即可
     # windowed_items.append(windowing(item, minibin_capacity, plain_modulus))
 
@@ -110,7 +112,8 @@ for j in range(logB_ell):
             enc_query_serialized[i][j] = enc_query[i][j].serialize()
 
 context_serialized = public_context.serialize()
-message_to_be_sent = [context_serialized, enc_query_serialized]
+enc_message_to_be_sent = [context_serialized, enc_query_serialized]
+message_to_be_sent=(enc_message_to_be_sent,first_slice)
 message_to_be_sent_serialized = zlib.compress(pickle.dumps(message_to_be_sent, protocol=pickle.HIGHEST_PROTOCOL))
 t4 = time()
 print("*Computing ciphertext time:{:.2f}s".format(t4 - t3))
@@ -134,30 +137,23 @@ while len(answer) < L:
     answer += data
 server_to_client_query_response = len(answer) #bytes
 # Here is the vector of decryptions of the answer
-(ciphertexts,link_slice_matrix) = pickle.loads(zlib.decompress(answer))
+(ciphertexts,reconstruct_slices) = pickle.loads(zlib.decompress(answer))
 t6=time()
-print("*Received coefficients and okvs matrix sent by the server,time:{:.2f}s".format(t6 - t5))
+print("*Received coefficients sent by the server,time:{:.2f}s".format(t6 - t5))
 decryptions = []
 for ct in ciphertexts:
     decryptions.append(ts.bfv_vector_from(private_context, ct).decrypt())
 
-link_slice_matrix_array=link_slice_matrix.toarray()
+# link_slice_matrix_array=link_slice_matrix.toarray()
 with open('client_set.csv', 'r') as g:
     client_set_entries = g.readlines()
 client_intersection = []
 VBF_PRFed_common_element_set=set()
 for j in range(alpha):
     for i in range(table_size):
-        # link_slice_matrix_ij=link_slice_matrix[f"{i}_{j}"]
-        link_slice_matrix_ij=link_slice_matrix_array[3*(alpha*i+j):3*(alpha*i+j+1)].tolist()
-        # link_slice_matrix_ij=link_slice_matrix[alpha*i+j].toarray().tolist()
         if decryptions[j][i] == 0:
-            reconstruct_slice=[]
-            for link_vec in link_slice_matrix_ij:
-                first_slice=dict_index_itemslice[i][0]
-                remain_slice=dict_index_itemslice[i][1:]
-                reconstruct_slice.append(rrokvs.decode([first_slice],link_vec,minibin_capacity)[0])
-            if(remain_slice==reconstruct_slice):#第2，3，...分片全部相等
+            remain_slice=dict_index_itemslice[i][1:]
+            if(remain_slice==reconstruct_slices[i][j]):#第2，3，...分片全部相等
                 # The index i is the location of the element in the intersection
                 # Here we recover this element from the Cuckoo hash structure
                 VBF_PRFed_common_element = reconstruct_item(CH.data_structure[i], i, cuckoo_hash_seeds[CH.data_structure[i] % 4])
