@@ -1,4 +1,4 @@
-from parameters import number_of_hashes, bin_capacity, alpha,VBF_hash_seeds,cuckoo_hash_seeds,output_bits,dummy_msg_server
+from parameters import number_of_hashes, bin_capacity, alpha,VBF_hash_seeds,cuckoo_hash_seeds,output_bits,dummy_msg_server,cal_pax_process_num
 from simple_hash import Simple_hash
 from auxiliary_functions import cal_polycoeef_pax
 from oprf import server_prf_offline_parallel, order_of_generator, G
@@ -58,13 +58,12 @@ t2 = time()
 print("*Simple hashing phase time:{:.2f}s".format(t2 - t1))
 poly_coeffs = []
 link_slice_matrix=[]
-number_of_processes = 3
 arr = np.arange(table_size)  
-bin_array = np.array_split(arr, number_of_processes)
+bin_array = np.array_split(arr, cal_pax_process_num)
 bin_lists = [list(bin) for bin in bin_array]
 outputs=[]
 partial_func = partial(cal_polycoeef_pax, SH=SH)  
-with Pool(number_of_processes) as p:
+with Pool(cal_pax_process_num) as p:
     outputs = p.map(partial_func, bin_lists)
 for output in outputs:
     poly_coeffs+=output[0]

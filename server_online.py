@@ -17,6 +17,7 @@ minibin_capacity = int(bin_capacity / alpha)
 logB_ell = int(log2(minibin_capacity) / ell) + 1 # <= 2 ** HE.depth
 # 创建一个新的socket对象，指定IPv4地址族（AF_INET）和TCP传输协议（SOCK_STREAM)
 serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+serv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 serv.bind(('localhost', 4470)) #绑定socket到特定的地址和端口 
 serv.listen(1)# 开始监听连接请求，参数1表示最大连接数（这里为1，即一次只能处理一个连接）
 
@@ -99,9 +100,7 @@ for i in range(1):
     for j in range(alpha):
         for i in range(table_size):
             link_slice_matrix_ij=link_slice_matrix_array[3*(alpha*i+j):3*(alpha*i+j+1)].tolist()
-            reconstruct_slice=[]
-            for link_vec in link_slice_matrix_ij:
-                reconstruct_slice.append(rrokvs.decode([first_slice[i]],link_vec,minibin_capacity)[0])
+            reconstruct_slice=[rrokvs.decode([first_slice[i]],link_vec,minibin_capacity)[0] for link_vec in link_slice_matrix_ij]
             reconstruct_slices[i][j]=reconstruct_slice
            
     data_to_client=(srv_answer,reconstruct_slices)
