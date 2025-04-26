@@ -1,4 +1,4 @@
-from parameters import number_of_hashes, bin_capacity, alpha,VBF_hash_seeds,cuckoo_hash_seeds,output_bits,dummy_msg_server,cal_pax_process_num
+from parameters import label_size,number_of_hashes, bin_capacity, alpha,VBF_hash_seeds,cuckoo_hash_seeds,output_bits,dummy_msg_server,cal_pax_process_num
 from simple_hash import Simple_hash
 from auxiliary_functions import cal_polycoeef_pax
 from oprf import server_prf_offline_parallel, order_of_generator, G
@@ -15,12 +15,15 @@ table_size=2**output_bits
 server_point_precomputed = (oprf_server_key % order_of_generator) * G
 t0 = time()
 server_set = []
-with open('server_set.csv', 'r') as f:
+# serverset_file='./datasets/server_mnist.csv'
+serverset_file='./datasets/server_diabetes.csv'
+# serverset_file='server_set.csv'
+with open(serverset_file, 'r') as f:
     lines = f.readlines()
     for line in lines:
         item,label=line[:-1].split(",")
         binary_item = bin(int(item))[2:]
-        binary_label = bin(int(label))[2:]
+        binary_label = "0"*(label_size-len(bin(int(label))[2:]))+bin(int(label))[2:]
         for i in range(len(binary_label)):
             # Splicing the binary string of binary_item and the current bit of binary_1abel  
             binary_item = binary_item + binary_label[i]  

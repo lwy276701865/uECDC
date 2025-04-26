@@ -40,6 +40,12 @@ python3 server_offline.py
 python3 server_online.py
 python3 client_online.py
 ```
+#### 4.1 Concisely Run Project
+```shell
+python3 set_gen.py
+python3 server_offline.py
+python3 total_online.py
+```
 ### 5.Example of running results
 Here is a screenshot showing the running results of the project.
 <br>
@@ -48,3 +54,9 @@ Here is a screenshot showing the running results of the project.
 ![](/picture/server_online.png "server_online")
 <br>
 ![](/picture/client_online.png "client_online")
+### 6.Performing data cleaning on publicly available machine learning datasets
+We will convert the open-source dataset files into a format that we can use through trans_machinelearning_dataset.py file. The metadata set files are too large to upload to the repository. If needed, please download the original data files from the link
+<br>
+1.[MNIST](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv)
+<br>
+2.[diabetes-clinical-dataset](https://www.kaggle.com/datasets/ziya07/diabetes-clinical-dataset100k-rows)

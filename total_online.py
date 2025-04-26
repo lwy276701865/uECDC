@@ -1,23 +1,33 @@
+"""
+This Python file does not use socket programming,
+which can quickly verify the correctness of the solution.
+Simultaneously able to obtain computation time and communication overhead
+"""
 import tenseal as ts
-from time import time
-import socket,zlib
-import pickle,mmh3
+import pickle,zlib,mmh3,rrokvs
+import numpy as np
 from math import log2
-from parameters import  output_bits,plain_modulus, poly_modulus_degree, bin_capacity, alpha, ell, cuckoo_hash_seeds,VBF_hash_seeds,slice_number,dummy_msg_client,label_size
-from cuckoo_hash import reconstruct_item, Cuckoo
-from auxiliary_functions import windowing,split_integers_unique_first_block
-from oprf import order_of_generator, client_prf_online_parallel,client_prf_offline, G
 
+from cuckoo_hash import reconstruct_item, Cuckoo
+from parameters import label_size,plain_modulus,dummy_msg_client,cuckoo_hash_seeds,VBF_hash_seeds,bin_capacity, alpha, ell,output_bits,slice_number,poly_modulus_degree
+from auxiliary_functions import power_reconstruct,windowing,split_integers_unique_first_block
+from oprf import server_prf_online_parallel,order_of_generator, client_prf_online_parallel,client_prf_offline, G
+from time import time
+
+oprf_server_key = 1234567891011121314151617181920
 oprf_client_key = 12345678910111213141516171819222222222222
 client_point_precomputed = (oprf_client_key % order_of_generator) * G
 base = 2 ** ell
+table_size=2**output_bits
 minibin_capacity = int(bin_capacity / alpha)
 logB_ell = int(log2(minibin_capacity) / ell) + 1 # <= 2 ** HE.depth
-table_size=2**output_bits
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('localhost', 4470))
 
-# Setting the public and private contexts for the BFV Homorphic Encryption scheme
+with open('server_preprocessed.pkl', 'rb') as g:
+    (poly_coeffs,link_slice_matrix) = pickle.load(g)
+
+# For the online phase of the server, we need to use the columns of the preprocessed database
+transposed_poly_coeffs = np.transpose(poly_coeffs).tolist() #数组转置
+
 private_context = ts.context(ts.SCHEME_TYPE.BFV, poly_modulus_degree=poly_modulus_degree, plain_modulus=plain_modulus)
 public_context = ts.context_from(private_context.serialize())
 public_context.make_context_public()
@@ -42,31 +52,19 @@ t0 = time()
 encoded_client_set = [client_prf_offline(item, client_point_precomputed) for item in client_set]
 # We prepare the partially OPRF processed database to be sent to the server
 encoded_client_set_serialized = zlib.compress(pickle.dumps(encoded_client_set, protocol=pickle.HIGHEST_PROTOCOL))
-L = len(encoded_client_set_serialized)
-#将消息长度 L 转换为字符串，然后在字符串末尾填充空格，使其总长度为 10 字符。这种方法可以确保服务器可以准确地解析消息的长度。
-sL = str(L) + ' ' * (10 - len(str(L)))
-client_to_server_communiation_oprf = L #in bytes
-# The length of the message is sent first
-client.sendall(sL.encode())#编码为字节流
-client.sendall(encoded_client_set_serialized)
+c2s_oprf_commu = len(encoded_client_set_serialized)
+encoded_client_set = pickle.loads(zlib.decompress(encoded_client_set_serialized))
 
-#开始接受server处理过的oprf数据，即C=sB.其中s为发送方OPRF秘钥。client计算r^(-1)C=sA即可。
-L = client.recv(10).decode().strip()
-L = int(L, 10)
-PRFed_encoded_client_set_serialized = b""
-while len(PRFed_encoded_client_set_serialized) < L:
-    data = client.recv(8192)
-    if not data: break
-    PRFed_encoded_client_set_serialized += data   
+# The server computes (parallel computation) the online part of the OPRF protocol, using its own secret key
+PRFed_encoded_client_set = server_prf_online_parallel(oprf_server_key, encoded_client_set)
+PRFed_encoded_client_set_serialized = zlib.compress(pickle.dumps(PRFed_encoded_client_set, protocol=pickle.HIGHEST_PROTOCOL))
+s2c_oprf_commu = len(PRFed_encoded_client_set_serialized)
 PRFed_encoded_client_set = pickle.loads(zlib.decompress(PRFed_encoded_client_set_serialized))
 
-server_to_client_communication_oprf = len(PRFed_encoded_client_set_serialized)
-
-# We finalize the OPRF processing by applying the inverse of the secret key, oprf_client_key
 key_inverse = pow(oprf_client_key, -1, order_of_generator)
 PRFed_client_set = client_prf_online_parallel(key_inverse, PRFed_encoded_client_set)
 t1=time()
-print('*OPRFphase time:{:.2f}s'.format(t1 - t0))
+print('*DH-OPRF time:{:.2f}s'.format(t1 - t0))
 #VBF编码
 VBF_PRF_link={} #将数据与VBF编码建立关系，方便定位数据
 VBF_PRFed_client_set=set()
@@ -123,29 +121,56 @@ message_to_be_sent=(enc_message_to_be_sent,first_slice)
 message_to_be_sent_serialized = zlib.compress(pickle.dumps(message_to_be_sent, protocol=pickle.HIGHEST_PROTOCOL))
 t4 = time()
 print("*Computing ciphertext time:{:.2f}s".format(t4 - t3))
-L = len(message_to_be_sent_serialized)
-sL = str(L) + ' ' * (10 - len(str(L)))
-client_to_server_communiation_query = L 
-#the lenght of the message is sent first
-client.sendall((sL).encode())
-# Now we send the message to the server
-client.sendall(message_to_be_sent_serialized)
-t5 = time()
-print("*sendall data time:{:.2f}s".format(t5 - t4))
+c2s_query_commu = len(message_to_be_sent_serialized)
+(enc_message_to_be_sent,first_slice) = pickle.loads(zlib.decompress(message_to_be_sent_serialized))
 
-# The answer obtained from the server:
-L = client.recv(10).decode().strip()
-L = int(L, 10)
-answer = b""
-while len(answer) < L:
-    data = client.recv(8192)
-    if not data: break
-    answer += data
-server_to_client_query_response = len(answer) #bytes
-# Here is the vector of decryptions of the answer
-(ciphertexts,reconstruct_slices) = pickle.loads(zlib.decompress(answer))
-t6=time()
-print("*Received coefficients sent by the server,time:{:.2f}s".format(t6 - t5))
+srv_context = ts.context_from(enc_message_to_be_sent[0])#只能加密的public_context
+received_enc_query_serialized = enc_message_to_be_sent[1]#client发送的y的密文
+received_enc_query = [[None for j in range(logB_ell)] for i in range(base - 1)]
+for i in range(base - 1):
+    for j in range(logB_ell):
+        if ((i + 1) * base ** j - 1 < minibin_capacity):
+            received_enc_query[i][j] = ts.bfv_vector_from(srv_context, received_enc_query_serialized[i][j])
+
+# Here we recover all the encrypted powers Enc(y), Enc(y^2), Enc(y^3) ..., Enc(y^{minibin_capacity}), from the encrypted windowing of y.
+# These are needed to compute the polynomial of degree minibin_capacity
+all_powers = [None for i in range(minibin_capacity)]
+for i in range(base - 1):
+    for j in range(logB_ell):
+        if ((i + 1) * base ** j - 1 < minibin_capacity):
+            all_powers[(i + 1) * base ** j - 1] = received_enc_query[i][j]
+
+for k in range(minibin_capacity):
+    if all_powers[k] == None:
+        all_powers[k] = power_reconstruct(received_enc_query, k + 1)
+all_powers = all_powers[::-1]#翻转数组，y^b,...,y^2,y
+
+# Server sends alpha ciphertexts, obtained from performing dot_product between the polynomial coefficients from the preprocessed server database and all the powers Enc(y), ..., Enc(y^{minibin_capacity})
+srv_answer = []
+for i in range(alpha):
+    # the rows with index multiple of (B/alpha+1) have only 1's
+    dot_product = all_powers[0]
+    for j in range(1,minibin_capacity):
+        dot_product = dot_product + transposed_poly_coeffs[(minibin_capacity + 1) * i + j] * all_powers[j]
+    dot_product = dot_product + transposed_poly_coeffs[(minibin_capacity + 1) * i + minibin_capacity]
+    srv_answer.append(dot_product.serialize())
+# The answer to be sent to the client is prepared
+# data_to_client=(srv_answer,link_slice_matrix)
+link_slice_matrix_array=link_slice_matrix.toarray()
+reconstruct_slices=[[None for _ in range(alpha)] for _ in range(table_size)]
+for j in range(alpha):
+    for i in range(table_size):
+        link_slice_matrix_ij=link_slice_matrix_array[3*(alpha*i+j):3*(alpha*i+j+1)].tolist()
+        reconstruct_slice=[rrokvs.decode([first_slice[i]],link_vec,minibin_capacity)[0] for link_vec in link_slice_matrix_ij]
+        reconstruct_slices[i][j]=reconstruct_slice
+        
+data_to_client=(srv_answer,reconstruct_slices)
+response_to_be_sent = zlib.compress(pickle.dumps(data_to_client, protocol=pickle.HIGHEST_PROTOCOL))
+t5 = time()
+print('*Calculate all homomorphic operations,time{:.2f}s'.format(t5 - t4))  
+s2c_response_commu = len(response_to_be_sent)
+(ciphertexts,reconstruct_slices) = pickle.loads(zlib.decompress(response_to_be_sent))
+
 decryptions = []
 for ct in ciphertexts:
     decryptions.append(ts.bfv_vector_from(private_context, ct).decrypt())
@@ -169,16 +194,13 @@ for key,value in VBF_PRF_link.items():
         # 如果value中的两个整数都在VBF_PRFed_common_element_set中，则将key添加到结果列表中  
         index = PRFed_client_set.index(key)
         client_intersection.append(client_set_entries[int(index/label_size)][:-1])
-t7=time()
-print("*Decrypt data to obtain intersection results,time:{:.2f}s".format(t7 - t6))
+t6=time()
+print("*Decrypt data to obtain intersection results,time:{:.2f}s".format(t6 - t5))
 h = open(intersection_file, 'r')
 real_intersection = [line[:-1] for line in h]
 h.close()
-print('*Intersection recovered correctly: {}'.format(set(client_intersection) == set(real_intersection)))
-print('*Client ONLINE computation time {:.2f}s'.format(t4 - t0 + t7 - t6))
+print('*Intersection recovered correctly: {}'.format(set(real_intersection)==set(client_intersection)))
+print('*Client ONLINE computation time {:.2f}s'.format(t6 - t0 ))
 print('*Communication size:')
-print('    ~ Client --> Server:  {:.2f} MB'.format((client_to_server_communiation_oprf + client_to_server_communiation_query )/ (2 ** 20)))
-print('    ~ Server --> Client:  {:.2f} MB'.format((server_to_client_communication_oprf + server_to_client_query_response )/ (2 ** 20)))
-client.close()
-
-
+print('    ~ Client --> Server:  {:.2f} MB'.format((c2s_oprf_commu + c2s_query_commu )/ (2 ** 20)))
+print('    ~ Server --> Client:  {:.2f} MB'.format((s2c_oprf_commu + s2c_response_commu )/ (2 ** 20)))
