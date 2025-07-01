@@ -14,6 +14,25 @@ from auxiliary_functions import power_reconstruct,windowing,split_integers_uniqu
 from oprf import server_prf_online_parallel,order_of_generator, client_prf_online_parallel,client_prf_offline, G
 from time import time
 
+
+class Server():
+    def __init__(self):
+        self.context = None
+    def load_context(self, context_bytes):
+        self.context = ts.context_from(context_bytes)
+
+class Client():
+    def __init__(self, poly_modulus_degree,plain_modulus):
+        self.private_context = ts.context(ts.SCHEME_TYPE.BFV, 
+                                          poly_modulus_degree=poly_modulus_degree, 
+                                          plain_modulus=plain_modulus)
+        self.public_context = ts.context_from(self.private_context.serialize())
+        self.public_context.make_context_public()
+    def get_public_context(self):
+        return self.public_context.serialize()
+    def get_private_context(self):
+        return self.private_context
+    
 oprf_server_key = 1234567891011121314151617181920
 oprf_client_key = 12345678910111213141516171819222222222222
 client_point_precomputed = (oprf_client_key % order_of_generator) * G
@@ -28,9 +47,7 @@ with open('server_preprocessed.pkl', 'rb') as g:
 # For the online phase of the server, we need to use the columns of the preprocessed database
 transposed_poly_coeffs = np.transpose(poly_coeffs).tolist() #数组转置
 
-private_context = ts.context(ts.SCHEME_TYPE.BFV, poly_modulus_degree=poly_modulus_degree, plain_modulus=plain_modulus)
-public_context = ts.context_from(private_context.serialize())
-public_context.make_context_public()
+client=Client(poly_modulus_degree,plain_modulus)
 client_set = []
 # clientset_file='./datasets/client_mnist.csv'
 # intersection_file='./datasets/intersection_mnist.csv'
@@ -107,7 +124,7 @@ for j in range(logB_ell):
         if ((i + 1) * base ** j - 1 < minibin_capacity):
             for k in range(len(windowed_items)):
                 plain_query[k] = windowed_items[k][i][j]
-            enc_query[i][j] = ts.bfv_vector(private_context, plain_query)
+            enc_query[i][j] = ts.bfv_vector(client.get_private_context(), plain_query)
 
 enc_query_serialized = [[None for j in range(logB_ell)] for i in range(1, base)]
 for j in range(logB_ell):
@@ -115,17 +132,17 @@ for j in range(logB_ell):
         if ((i + 1) * base ** j - 1 < minibin_capacity):
             enc_query_serialized[i][j] = enc_query[i][j].serialize()
 
-context_serialized = public_context.serialize()
-enc_message_to_be_sent = [context_serialized, enc_query_serialized]
-message_to_be_sent=(enc_message_to_be_sent,first_slice)
+message_to_be_sent=(enc_query_serialized,first_slice)
 message_to_be_sent_serialized = zlib.compress(pickle.dumps(message_to_be_sent, protocol=pickle.HIGHEST_PROTOCOL))
 t4 = time()
 print("*Computing ciphertext time:{:.2f}s".format(t4 - t3))
+
 c2s_query_commu = len(message_to_be_sent_serialized)
 (enc_message_to_be_sent,first_slice) = pickle.loads(zlib.decompress(message_to_be_sent_serialized))
-
-srv_context = ts.context_from(enc_message_to_be_sent[0])#只能加密的public_context
-received_enc_query_serialized = enc_message_to_be_sent[1]#client发送的y的密文
+server=Server()
+server.load_context(client.get_public_context())
+srv_context =server.context
+received_enc_query_serialized = enc_message_to_be_sent#client发送的y的密文
 received_enc_query = [[None for j in range(logB_ell)] for i in range(base - 1)]
 for i in range(base - 1):
     for j in range(logB_ell):
@@ -173,7 +190,7 @@ s2c_response_commu = len(response_to_be_sent)
 
 decryptions = []
 for ct in ciphertexts:
-    decryptions.append(ts.bfv_vector_from(private_context, ct).decrypt())
+    decryptions.append(ts.bfv_vector_from(client.get_private_context(), ct).decrypt())
 
 # link_slice_matrix_array=link_slice_matrix.toarray()
 with open(clientset_file, 'r') as g:
